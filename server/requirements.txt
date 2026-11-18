@@ -1,0 +1,6 @@
+fastapi
+uvicorn
+pytest
+httpx
+git+https://github.com/balamuruganpg/promptwarden
+git+https://github.com/balamuruganpg/agentsentinel
