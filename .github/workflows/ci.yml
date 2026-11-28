@@ -1,0 +1,50 @@
+name: CI
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  server:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            server/requirements.txt
+            server/requirements-dev.txt
+      - name: Install server dependencies
+        run: python -m pip install -r server/requirements.txt -r server/requirements-dev.txt
+      - name: Run server unit tests
+        working-directory: server
+        run: python -m pytest tests/ -q
+      - name: Run API contract tests
+        env:
+          TRUSTLENS_BASE_URL: http://127.0.0.1:8000
+        run: |
+          db_dir=$(mktemp -d "$RUNNER_TEMP/trustlens.XXXXXX")
+          TRUSTLENS_DB="$db_dir/trustlens.sqlite3" python -m uvicorn app.main:app --app-dir server --host 127.0.0.1 --port 8000 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true; wait "$server_pid" 2>/dev/null || true; rm -rf "$db_dir"' EXIT
+          curl --fail --silent --show-error --max-time 2 --retry 20 --retry-delay 1 --retry-connrefused "$TRUSTLENS_BASE_URL/api/health"
+          python -m pytest contract-tests -q
+          kill -0 "$server_pid"
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run build

@@ -1,0 +1,12 @@
+services:
+  trustlens:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      TRUSTLENS_DB: /data/trustlens.db
+    volumes:
+      - trustlens-db:/data
+
+volumes:
+  trustlens-db:
